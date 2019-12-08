@@ -10,6 +10,8 @@ from nltk.probability import (
     RandomProbDist,
 )
 from nltk.tag import hmm
+import numpy as np
+from scipy.special import lambertw
 def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_sents=None):
 
     # default to the MLE estimate
@@ -27,6 +29,7 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
     transitions = ConditionalFreqDist()
     outputs = ConditionalFreqDist()
     for sequence in labelled_sequences:
+        print(len(sequence))
         lasts = None
         for token in sequence:
             state = token[1]
@@ -54,7 +57,60 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
     # create probability distributions (with smoothing)
     N = len(states)
     pi = estimator(starting, N)
+
     A = ConditionalProbDist(transitions, estimator, N)
     B = ConditionalProbDist(outputs, estimator, len(symbols))
+    
+    alpha=0.5
+    all_hidden_states = A.conditions()
+    num_states = len(all_hidden_states)
+    T=200
+    p_qt = np.zeros((T,num_states))
+    for i,l in enumerate(all_hidden_states):
+        p_qt[0,i] = pi.prob(l)
+    
+    for t in range(1,T):
+        for i,m in enumerate(all_hidden_states):
+            for j,l in enumerate(all_hidden_states):
+                p_qt[t,i] += A.get(l).prob(m) * p_qt[t-1,j]
 
+    sum_t_p_qt = p_qt.sum(axis=0)
+    W = np.zeros((num_states,len(symbols)))
+    for q,i in enumerate(all_hidden_states): # Q loop
+        for o,j in enumerate(symbols): # O loop
+            if outputs.get(i).get(j):
+                W[q,o] = outputs.get(i).get(j) * alpha / ((1-alpha) * sum_t_p_qt[q])
+    gamma=-10
+    g = np.zeros((num_states))
+    for q,i in enumerate(all_hidden_states): # Q loop
+        g[q] = gamma * alpha / ((1-alpha) * sum_t_p_qt[q])
+
+    b_prob = np.zeros((num_states,len(symbols)))
+    for i in range(len(all_hidden_states)): # Q loop
+        for j in range(len(symbols)): # O loop
+            if W[i,j] ==0.:
+                
+                b_prob[i,j] = 0.
+            else:
+
+                for gamma in range(-1000,1000):
+                    g= gamma * alpha / ((1-alpha) * sum_t_p_qt[i])
+                    input_lamb= - W[i,j] * np.exp(1+ g)
+                    # print(g) #-9 is needed
+                    # print('input_lamb',  input_lamb)
+                    # print('lambert value',lambertw(input_lamb ,-1))
+                    # print('b prob', - W[i,j] / lambertw(input_lamb,-1 ))
+
+                        # import pdb;pdb.set_trace()
+                    b_candidate = - W[i,j] / lambertw(input_lamb,-1 )
+                    # if i==27:
+                    #     print(gamma,b_candidate)
+                    if abs(b_candidate - 1.) <= 0.17:
+                        b_prob[i,j] = b_candidate
+    import pdb;pdb.set_trace()
+    print(b_prob[0])
+    
     return hmm.HiddenMarkovModelTagger(symbols, states, A, B, pi)
+
+
+
