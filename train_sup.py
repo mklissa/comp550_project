@@ -103,9 +103,7 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
                     b_candidate = - W[i,j] / lambertw(input_lamb,-1 )
                     if abs(b_candidate - 1.) <= 0.1:
                         b_prob[i,j] = b_candidate
-
-    # for k in outputs.keys():
-    #     outputs.get(k)
+    b_prob = b_prob / b_prob.sum(axis=1)[...,None]
     import pdb;pdb.set_trace()
     print(b_prob[0])
     
