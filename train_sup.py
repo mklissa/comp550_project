@@ -93,20 +93,19 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
                 b_prob[i,j] = 0.
             else:
 
-                for gamma in range(-1000,1000):
+                for gamma in np.linspace(-1000,1000,8000):
                     g= gamma * alpha / ((1-alpha) * sum_t_p_qt[i])
                     input_lamb= - W[i,j] * np.exp(1+ g)
                     # print(g) #-9 is needed
                     # print('input_lamb',  input_lamb)
                     # print('lambert value',lambertw(input_lamb ,-1))
                     # print('b prob', - W[i,j] / lambertw(input_lamb,-1 ))
-
-                        # import pdb;pdb.set_trace()
                     b_candidate = - W[i,j] / lambertw(input_lamb,-1 )
-                    # if i==27:
-                    #     print(gamma,b_candidate)
-                    if abs(b_candidate - 1.) <= 0.17:
+                    if abs(b_candidate - 1.) <= 0.1:
                         b_prob[i,j] = b_candidate
+
+    # for k in outputs.keys():
+    #     outputs.get(k)
     import pdb;pdb.set_trace()
     print(b_prob[0])
     
