@@ -7,8 +7,15 @@ import re
 
 import argparse
 
+import random
+
+np.random.seed(1)
+random.seed(1)
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-laplace",
+                    action="store_true")
+parser.add_argument("-mihmm",
                     action="store_true")
 parser.add_argument("-lm",
                     action="store_true")
@@ -69,20 +76,21 @@ else:
 # Train HMM on POS tagging instead of ciphers
 test_data = []
 if args.pos:
-    nltk.download('brown')
-    nltk.download('universal_tagset')
+    # nltk.download('brown')
+    # nltk.download('universal_tagset')
     from nltk.corpus import brown
 
     # list of (list of (str,str)), each top level list is a sentence, containing (word,tag) pairs
     brown_news_tagged = brown.tagged_sents(categories='news', tagset='universal')[:1000]
-
+    n = len(brown_news_tagged)
+    # import pdb;pdb.set_trace()
     # Clean up sentences from brown and build sets of states and symbols
     tag_re = re.compile(r'[*]|--|[^+*-]+')
     tag_set = set()
     symbols = set()
 
     del train_data[:]
-    for sentence in brown_news_tagged[:800]:
+    for sentence in brown_news_tagged[:int(n * 0.8)]:
         for i in range(len(sentence)):
             word, tag = sentence[i]
             word = word.lower()  # normalize
@@ -98,7 +106,7 @@ if args.pos:
     symbols = list(symbols)
 
     # Set up test data set by cleaning in the same manner
-    for sentence in brown_news_tagged[801:]:
+    for sentence in brown_news_tagged[int(n * 0.8):]:
         for i in range(len(sentence)):
             word, tag = sentence[i]
             word = word.lower()  # normalize
@@ -107,7 +115,7 @@ if args.pos:
             sentence[i] = (word, tag)  # store cleaned-up tagged token
         test_data += [sentence]
 
-tagger = train_supervised(states, symbols, train_data, estimator=estim, extra_sents=extra_sents)
+tagger = train_supervised(states, symbols, train_data, estimator=estim, extra_sents=extra_sents,mihmm=args.mihmm)
 
 # We redefine the test_data set if not doing POS tagging
 if not args.pos:
@@ -139,8 +147,8 @@ if not args.pos:
         test_data.append(sent_tuples)
 
 print("\n==================================")
-train_acc = tagger.evaluate(train_data)
+# train_acc = tagger.evaluate(train_data)
 test_acc = tagger.evaluate(test_data)
-print("Training accuracy: {}".format(train_acc))
+# print("Training accuracy: {}".format(train_acc))
 print("Test accuracy: {}".format(test_acc))
 print("==================================")
