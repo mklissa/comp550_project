@@ -22,6 +22,8 @@ parser.add_argument("-lm",
 parser.add_argument("data_id")
 parser.add_argument("-pos",
                     action="store_true")
+parser.add_argument("-alpha",
+                    type=float, default=0.5)
 args = parser.parse_args()
 
 states = symbols = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
@@ -68,20 +70,41 @@ for c_sent, p_sent in zip(cipher, plain):
     sent_tuples = [(c_sent[i], p_sent[i]) for i in range(len(c_sent))]
     train_data.append(sent_tuples)
 
+
+
+
+with open('{}/test_cipher.txt'.format(args.data_id), 'r') as f:
+    data = f.read()
+test_cipher = data.split('\n')
+if '' in test_cipher:
+    test_cipher.remove('')
+
+
+with open('{}/test_plain.txt'.format(args.data_id), 'r') as f:
+    data = f.read()
+test_plain = data.split('\n')
+if '' in test_plain:
+    test_plain.remove('')
+
+test_data=[]
+for c_sent, p_sent in zip(test_cipher, test_plain):
+    sent_tuples = [(c_sent[i], p_sent[i]) for i in range(len(c_sent))]
+    test_data.append(sent_tuples)
+
+
 if args.laplace:
     estim = lambda fd, bins: nltk.LaplaceProbDist(fd, bins)
 else:
     estim = lambda fdist, bins: nltk.MLEProbDist(fdist)
 
 # Train HMM on POS tagging instead of ciphers
-test_data = []
 if args.pos:
     # nltk.download('brown')
     # nltk.download('universal_tagset')
     from nltk.corpus import brown
 
     # list of (list of (str,str)), each top level list is a sentence, containing (word,tag) pairs
-    brown_news_tagged = brown.tagged_sents(categories='news', tagset='universal')[:1000]
+    brown_news_tagged = brown.tagged_sents(categories='news', tagset='universal')[:2000]
     n = len(brown_news_tagged)
     # import pdb;pdb.set_trace()
     # Clean up sentences from brown and build sets of states and symbols
@@ -105,6 +128,7 @@ if args.pos:
     states = list(tag_set)
     symbols = list(symbols)
 
+    del test_data[:]
     # Set up test data set by cleaning in the same manner
     for sentence in brown_news_tagged[int(n * 0.8):]:
         for i in range(len(sentence)):
@@ -114,41 +138,38 @@ if args.pos:
             tag = tag_re.match(tag).group()
             sentence[i] = (word, tag)  # store cleaned-up tagged token
         test_data += [sentence]
+alphas = np.linspace(0.1,1.,19)
+# alphas=[args.alpha]
+train_accs = []
+valid_accs = []
+for alpha in alphas:
+    tagger = train_supervised(states, symbols, train_data, test_data, \
+        estimator=estim, extra_sents=extra_sents, \
+        mihmm=args.mihmm,pos=args.pos,alpha=alpha)
 
-tagger = train_supervised(states, symbols, train_data, estimator=estim, extra_sents=extra_sents,mihmm=args.mihmm)
+    # We redefine the test_data set if not doing POS tagging
+    if not args.pos:
 
-# We redefine the test_data set if not doing POS tagging
-if not args.pos:
-    with open('{}/test_cipher.txt'.format(args.data_id), 'r') as f:
-        data = f.read()
-    test_cipher = data.split('\n')
-    if '' in test_cipher:
-        test_cipher.remove('')
 
+        print("==================================")
+        print("Generating test sentences for dataset {}".format(args.data_id))
+        print("Laplace Smoothing is {}".format(args.laplace))
+        print("Extra data is {}".format(args.lm))
+        print("==================================")
+
+        for test_sent in test_cipher:
+            print('')
+            tagged = tagger.best_path(test_sent)
+            print(''.join(tagged))
+
+    print("\n==================================")
+    train_acc = tagger.evaluate(train_data)
+    valid_acc = tagger.evaluate(test_data)
+    print("Training accuracy: {}".format(train_acc))
+    print("Validation accuracy: {}".format(valid_acc))
     print("==================================")
-    print("Generating test sentences for dataset {}".format(args.data_id))
-    print("Laplace Smoothing is {}".format(args.laplace))
-    print("Extra data is {}".format(args.lm))
-    print("==================================")
-    for test_sent in test_cipher:
-        print('')
-        tagged = tagger.best_path(test_sent)
-        print(''.join(tagged))
+    train_accs.append(train_acc)
+    valid_accs.append(valid_acc)
 
-    with open('{}/test_plain.txt'.format(args.data_id), 'r') as f:
-        data = f.read()
-    test_plain = data.split('\n')
-    if '' in test_plain:
-        test_plain.remove('')
-
-    # test_data=[]
-    for c_sent, p_sent in zip(test_cipher, test_plain):
-        sent_tuples = [(c_sent[i], p_sent[i]) for i in range(len(c_sent))]
-        test_data.append(sent_tuples)
-
-print("\n==================================")
-# train_acc = tagger.evaluate(train_data)
-test_acc = tagger.evaluate(test_data)
-# print("Training accuracy: {}".format(train_acc))
-print("Test accuracy: {}".format(test_acc))
-print("==================================")
+np.savetxt('train_pos_laplace{}.csv'.format(args.laplace),train_accs)
+np.savetxt('valid_pos_laplace{}.csv'.format(args.laplace),valid_accs)

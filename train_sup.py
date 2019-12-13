@@ -21,7 +21,9 @@ from scipy.special import xlogy
 import warnings
 warnings.filterwarnings('ignore')
 
-def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_sents=None, mihmm=False):
+def train_supervised(states, symbols, labelled_sequences, test_data, \
+ estimator=None, extra_sents=None, mihmm=False, pos=False, alpha=0.5):
+    train_data=labelled_sequences
 
     # default to the MLE estimate
     if estimator is None:
@@ -32,7 +34,7 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
     known_symbols = set(symbols)
     known_states = set(states)
 
-
+    # import pdb;pdb.set_trace()
     # Create and define starting, transitions and outputs frequencies.
     starting = FreqDist()
     transitions = ConditionalFreqDist()
@@ -70,11 +72,20 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
     A = ConditionalProbDist(transitions, estimator, N)
     B = ConditionalProbDist(outputs, estimator, len(symbols))
 
+
+
+    ### Code for MIHMM
     if mihmm:
-        # alpha=0.3
-        # T=140
-        alpha=0.4
-        T=400
+        train_accs = []
+        valid_accs = []
+        if pos:
+            # POS tagging
+            # alpha=0.3
+            T=140
+        else:
+            # cipher 3
+            # alpha=0.4
+            T=400
 
         all_hidden_states = A.conditions()
         num_states = len(all_hidden_states)
@@ -105,7 +116,14 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
                     if outputs.get(i).get(j):
                         W[q,o] = outputs.get(i).get(j) * alpha / ((1-alpha) * sum_t_p_qt[q])
 
-
+            if pos:
+                low_g = -4000
+                high_g = 0
+                interval_g =5000                
+            else:
+                low_g = -150
+                high_g = 0
+                interval_g =1000
 
             # import pdb;pdb.set_trace()
             b_prob = np.zeros((num_states,len(symbols)))
@@ -113,10 +131,7 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
             # i=0
                 b_candidate = np.zeros((len(symbols)))
                 non_zeros = (W[i] != 0.)
-
-                # for gamma in np.linspace(-4000,0,5000): 
-                # for gamma in np.linspace(-4000,0,5000): 
-                for gamma in np.linspace(-150,0,1000):
+                for gamma in np.linspace(low_g,high_g,interval_g):    # cipher3
                     gi = gamma  / ((1-alpha) * sum_t_p_qt[i])
                     input_lamb= - W[i,:] * np.exp(1 + gi)
                     lamb = lambertw(input_lamb,-1 )
@@ -131,11 +146,11 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
                         # print(gamma,b_candidate.sum())               
                         b_prob[i,:] = b_candidate
                         best_gamma=gamma
-                print(best_gamma)
+                # print(best_gamma)
 
 
 
-            print('b_prob',b_prob.sum(axis=1))
+            # print('b_prob',b_prob.sum(axis=1))
             b_prob = b_prob / b_prob.sum(axis=1)[...,None]
 
 
@@ -176,11 +191,18 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
                 denoms[l] *= (1-alpha)        
 
 
+            if pos:
+                low_b = -4000
+                high_b = 40000
+                interval_b =80000                
+            else:
+                low_b = -500
+                high_b = 4000
+                interval_b =4000
 
             for l in range(num_states):
             # l=0
-                # for beta_l in np.linspace(-4000,40000,80000):
-                for beta_l in np.linspace(-500,4000,4000):
+                for beta_l in np.linspace(low_b,high_b,interval_b):      # cipher3
                     
                     a_candidate= numerators[l] / (denoms[l] + beta_l)
                     
@@ -188,9 +210,9 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
                         # print(beta_l,a_candidate.sum())
                         a_prob[l,:] = a_candidate
                         best_beta=beta_l
-                print(best_beta)
+                # print(best_beta)
 
-            print('a_prob',a_prob.sum(axis=1))
+            # print('a_prob',a_prob.sum(axis=1))
             a_prob = a_prob / a_prob.sum(axis=1)[...,None]
             a_prob=np.abs(a_prob)
             
@@ -198,18 +220,32 @@ def train_supervised(states, symbols, labelled_sequences, estimator=None, extra_
             
 
 
-        ####
+            ############################
+
+
+
         for i,l in enumerate(all_hidden_states):
+            # import pdb;pdb.set_trace()
             for j,m in enumerate(all_hidden_states):
                 A.get(l)._freqdist[m] = a_prob[i, j] * A.get(l)._freqdist.N()
+            # import pdb;pdb.set_trace()
 
         for q,i in enumerate(all_hidden_states): 
             for o,j in enumerate(symbols): 
                 B.get(i)._freqdist[j] = b_prob[q, o] * B.get(i)._freqdist.N()
 
 
-    # import pdb;pdb.set_trace()
-    
+    #         tagger = hmm.HiddenMarkovModelTagger(symbols, states, A, B, pi)
+    #         train_acc = tagger.evaluate(train_data)
+    #         valid_acc = tagger.evaluate(test_data)    
+    #         train_accs.append(train_acc)
+    #         valid_accs.append(valid_acc)
+    #         print(train_acc,valid_acc)
+        
+    # np.savetxt('train_cipher3_iter_laplace.csv',train_accs)
+    # np.savetxt('valid_cipher3_iter_laplace.csv',valid_accs)
+    # import sys;sys.exit()
+
     return hmm.HiddenMarkovModelTagger(symbols, states, A, B, pi)
 
 
