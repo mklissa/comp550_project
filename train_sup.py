@@ -80,11 +80,9 @@ def train_supervised(states, symbols, labelled_sequences, test_data, \
         valid_accs = []
         if pos:
             # POS tagging
-            # alpha=0.3
             T=140
         else:
             # cipher 3
-            # alpha=0.4
             T=400
 
         all_hidden_states = A.conditions()
@@ -235,16 +233,6 @@ def train_supervised(states, symbols, labelled_sequences, test_data, \
                 B.get(i)._freqdist[j] = b_prob[q, o] * B.get(i)._freqdist.N()
 
 
-    #         tagger = hmm.HiddenMarkovModelTagger(symbols, states, A, B, pi)
-    #         train_acc = tagger.evaluate(train_data)
-    #         valid_acc = tagger.evaluate(test_data)    
-    #         train_accs.append(train_acc)
-    #         valid_accs.append(valid_acc)
-    #         print(train_acc,valid_acc)
-        
-    # np.savetxt('train_cipher3_iter_laplace.csv',train_accs)
-    # np.savetxt('valid_cipher3_iter_laplace.csv',valid_accs)
-    # import sys;sys.exit()
 
     return hmm.HiddenMarkovModelTagger(symbols, states, A, B, pi)
 

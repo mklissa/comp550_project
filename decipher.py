@@ -106,7 +106,7 @@ if args.pos:
     # list of (list of (str,str)), each top level list is a sentence, containing (word,tag) pairs
     brown_news_tagged = brown.tagged_sents(categories='news', tagset='universal')[:2000]
     n = len(brown_news_tagged)
-    # import pdb;pdb.set_trace()
+
     # Clean up sentences from brown and build sets of states and symbols
     tag_re = re.compile(r'[*]|--|[^+*-]+')
     tag_set = set()
@@ -138,8 +138,8 @@ if args.pos:
             tag = tag_re.match(tag).group()
             sentence[i] = (word, tag)  # store cleaned-up tagged token
         test_data += [sentence]
-alphas = np.linspace(0.1,1.,19)
-# alphas=[args.alpha]
+
+alphas=[args.alpha]
 train_accs = []
 valid_accs = []
 for alpha in alphas:
@@ -171,5 +171,5 @@ for alpha in alphas:
     train_accs.append(train_acc)
     valid_accs.append(valid_acc)
 
-np.savetxt('train_pos_laplace{}.csv'.format(args.laplace),train_accs)
-np.savetxt('valid_pos_laplace{}.csv'.format(args.laplace),valid_accs)
+# np.savetxt('train_pos_laplace{}.csv'.format(args.laplace),train_accs)
+# np.savetxt('valid_pos_laplace{}.csv'.format(args.laplace),valid_accs)
